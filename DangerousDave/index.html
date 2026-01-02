@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dangerous Dave - AI Recreation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Press Start 2P', monospace;
+            overflow: hidden;
+        }
+
+        .game-container {
+            position: relative;
+            background: #000;
+            border: 8px solid #333;
+            border-radius: 8px;
+            box-shadow: 
+                0 0 0 4px #1a1a1a,
+                0 0 40px rgba(0, 255, 0, 0.1),
+                inset 0 0 100px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        /* CRT Effect */
+        .game-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                transparent 50%,
+                rgba(0, 0, 0, 0.1) 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .game-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(
+                ellipse at center,
+                transparent 0%,
+                rgba(0, 0, 0, 0.3) 100%
+            );
+            pointer-events: none;
+            z-index: 101;
+        }
+
+        #gameCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .title-screen, .game-over-screen, .win-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 50;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .title-screen h1 {
+            font-size: 28px;
+            color: #ff0;
+            text-shadow: 
+                4px 4px 0 #f00,
+                -2px -2px 0 #0ff;
+            margin-bottom: 10px;
+            animation: titlePulse 1s ease-in-out infinite;
+        }
+
+        .title-screen .subtitle {
+            font-size: 10px;
+            color: #0f0;
+            margin-bottom: 30px;
+        }
+
+        @keyframes titlePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .dave-ascii {
+            color: #f00;
+            font-size: 8px;
+            line-height: 1;
+            margin: 20px 0;
+            white-space: pre;
+        }
+
+        .instructions {
+            font-size: 8px;
+            color: #aaa;
+            line-height: 2;
+            margin: 20px 0;
+        }
+
+        .instructions span {
+            color: #0ff;
+        }
+
+        .start-btn {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
+            padding: 15px 30px;
+            background: #f00;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.2s;
+            animation: blink 1s infinite;
+        }
+
+        .start-btn:hover {
+            background: #ff0;
+            color: #000;
+            transform: scale(1.1);
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .game-over-screen h1 {
+            font-size: 24px;
+            color: #f00;
+            margin-bottom: 20px;
+        }
+
+        .win-screen h1 {
+            font-size: 20px;
+            color: #0f0;
+            margin-bottom: 20px;
+        }
+
+        .final-score {
+            font-size: 14px;
+            color: #ff0;
+            margin: 20px 0;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 10;
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+        }
+
+        .hud-left, .hud-right {
+            display: flex;
+            gap: 20px;
+        }
+
+        .hud-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .hud-item .label {
+            color: #888;
+        }
+
+        .hud-item .value {
+            color: #ff0;
+        }
+
+        .lives-display {
+            color: #f00;
+        }
+
+        .mobile-controls {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            padding: 0 20px;
+            z-index: 200;
+        }
+
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(2, 50px);
+            gap: 5px;
+        }
+
+        .d-pad button {
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            color: #fff;
+            touch-action: manipulation;
+        }
+
+        .d-pad button:active {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-buttons button {
+            width: 70px;
+            height: 70px;
+            font-size: 12px;
+            font-family: 'Press Start 2P', monospace;
+            background: rgba(255, 0, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            color: #fff;
+            touch-action: manipulation;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-controls {
+                display: block;
+            }
+            .game-container {
+                border-width: 4px;
+            }
+        }
+
+        .level-complete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px 50px;
+            border: 4px solid #ff0;
+            z-index: 60;
+            text-align: center;
+        }
+
+        .level-complete h2 {
+            font-size: 16px;
+            color: #0f0;
+            margin-bottom: 15px;
+        }
+
+        .level-complete p {
+            font-size: 10px;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="640" height="480"></canvas>
+        
+        <div class="hud hidden" id="hud">
+            <div class="hud-left">
+                <div class="hud-item">
+                    <span class="label">SCORE:</span>
+                    <span class="value" id="scoreDisplay">0</span>
+                </div>
+                <div class="hud-item">
+                    <span class="label">LEVEL:</span>
+                    <span class="value" id="levelDisplay">1</span>
+                </div>
+            </div>
+            <div class="hud-right">
+                <div class="hud-item">
+                    <span class="label">LIVES:</span>
+                    <span class="lives-display" id="livesDisplay">❤❤❤</span>
+                </div>
+                <div class="hud-item" id="trophyStatus">
+                    <span class="label">🏆</span>
+                    <span class="value" id="trophyDisplay">✗</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="title-screen" id="titleScreen">
+            <h1>DANGEROUS DAVE</h1>
+            <div class="subtitle">AI Recreation of the 1990 Classic</div>
+            <pre class="dave-ascii">
+    ████
+   ██████
+   █▀██▀█
+   ██████
+    ████
+   ██████
+  ████████
+  █ ████ █
+    █  █
+    █  █
+   ██  ██
+            </pre>
+            <div class="instructions">
+                <span>← →</span> or <span>A D</span> - Move<br>
+                <span>SPACE</span> or <span>W ↑</span> - Jump<br>
+                <span>🏆</span> Collect Trophy to Open Door<br>
+                <span>💎</span> Collect Gems for Points<br>
+                <span>👾</span> Avoid Enemies!
+            </div>
+            <button class="start-btn" id="startBtn">PRESS START</button>
+        </div>
+
+        <div class="game-over-screen hidden" id="gameOverScreen">
+            <h1>GAME OVER</h1>
+            <div class="final-score">SCORE: <span id="finalScore">0</span></div>
+            <button class="start-btn" id="restartBtn">TRY AGAIN</button>
+        </div>
+
+        <div class="win-screen hidden" id="winScreen">
+            <h1>🎉 CONGRATULATIONS! 🎉</h1>
+            <p style="font-size: 10px; color: #0ff; margin-bottom: 20px;">YOU COMPLETED ALL LEVELS!</p>
+            <div class="final-score">FINAL SCORE: <span id="winScore">0</span></div>
+            <button class="start-btn" id="playAgainBtn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <div class="mobile-controls" id="mobileControls">
+        <div class="control-row">
+            <div class="d-pad">
+                <button style="visibility: hidden;"></button>
+                <button id="btnUp">▲</button>
+                <button style="visibility: hidden;"></button>
+                <button id="btnLeft">◀</button>
+                <button id="btnDown">▼</button>
+                <button id="btnRight">▶</button>
+            </div>
+            <div class="action-buttons">
+                <button id="btnJump">JUMP</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== DANGEROUS DAVE - GAME ENGINE ====================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game Constants
+        const TILE_SIZE = 32;
+        const GRAVITY = 0.6;
+        const JUMP_FORCE = -12;
+        const MOVE_SPEED = 4;
+        const COLS = 20;
+        const ROWS = 15;
+
+        // Game State
+        let gameState = 'title'; // title, playing, gameOver, win, levelComplete
+        let score = 0;
+        let lives = 3;
+        let currentLevel = 0;
+        let hasTrophy = false;
+        let levelCompleteTimer = 0;
+
+        // Audio Context for Sound Effects
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            switch(type) {
+                case 'jump':
+                    oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.1);
+                    break;
+                case 'collect':
+                    oscillator.frequency.setValueAtTime(523, audioCtx.currentTime);
+                    oscillator.frequency.setValueAtTime(659, audioCtx.currentTime + 0.1);
+                    oscillator.frequency.setValueAtTime(784, audioCtx.currentTime + 0.2);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.3);
+                    break;
+                case 'trophy':
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    oscillator.frequency.setValueAtTime(554, audioCtx.currentTime + 0.15);
+                    oscillator.frequency.setValueAtTime(659, audioCtx.currentTime + 0.3);
+                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.45);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.6);
+                    break;
+                case 'hurt':
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+                    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.3);
+                    break;
+                case 'levelComplete':
+                    const notes = [523, 587, 659, 698, 784, 880, 988, 1047];
+                    notes.forEach((freq, i) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.1);
+                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime + i * 0.1);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.1 + 0.1);
+                        osc.start(audioCtx.currentTime + i * 0.1);
+                        osc.stop(audioCtx.currentTime + i * 0.1 + 0.1);
+                    });
+                    break;
+            }
+        }
+
+        // Player Object
+        const player = {
+            x: 64,
+            y: 384,
+            width: 24,
+            height: 28,
+            vx: 0,
+            vy: 0,
+            onGround: false,
+            facing: 1,
+            frame: 0,
+            frameTimer: 0,
+            invincible: 0
+        };
+
+        // Input Handling
+        const keys = {
+            left: false,
+            right: false,
+            up: false,
+            jump: false
+        };
+
+        // Levels Data
+        // Legend: 0=empty, 1=brick, 2=ground, 3=gem, 4=trophy, 5=door, 6=spike, 7=platform, 8=ladder
+        // Enemies defined separately
+        const levels = [
+            // Level 1 - Introduction
+            {
+                map: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,1],
+                    [1,0,0,0,3,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,7,7,7,0,0,0,7,7,7,0,0,0,0,0,4,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,7,7,1],
+                    [1,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,7,7,7,0,0,0,0,0,0,3,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+                ],
+                enemies: [
+                    { x: 320, y: 384, type: 'walker', dir: 1, minX: 256, maxX: 384 }
+                ],
+                playerStart: { x: 64, y: 384 }
+            },
+            // Level 2 - More Challenge
+            {
+                map: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,7,7,7,0,0,0,0,0,0,0,1],
+                    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,1],
+                    [1,7,7,7,0,0,0,0,0,0,0,0,0,0,0,7,7,7,0,1],
+                    [1,0,0,0,0,0,3,0,0,0,0,0,4,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,7,7,7,0,0,0,7,7,7,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,1],
+                    [1,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,2,2,1],
+                    [1,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,1],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+                ],
+                enemies: [
+                    { x: 200, y: 384, type: 'walker', dir: 1, minX: 64, maxX: 300 },
+                    { x: 450, y: 384, type: 'walker', dir: -1, minX: 400, maxX: 550 }
+                ],
+                playerStart: { x: 64, y: 384 }
+            },
+            // Level 3 - Vertical Challenge
+            {
+                map: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,1],
+                    [1,0,0,3,0,0,0,0,0,0,0,0,0,0,7,7,7,0,0,1],
+                    [1,0,7,7,7,0,0,0,0,3,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,7,7,7,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,7,7,0,1],
+                    [1,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,7,7,7,0,0,0,0,6,6,6,0,0,0,0,0,0,1],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+                ],
+                enemies: [
+                    { x: 300, y: 384, type: 'walker', dir: 1, minX: 200, maxX: 400 },
+                    { x: 500, y: 288, type: 'walker', dir: -1, minX: 448, maxX: 550 }
+                ],
+                playerStart: { x: 64, y: 384 }
+            },
+            // Level 4 - Complex Layout
+            {
+                map: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,1],
+                    [1,7,7,7,0,0,0,3,0,0,0,0,0,0,0,0,7,7,7,1],
+                    [1,0,0,0,0,0,7,7,7,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,1],
+                    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,3,0,0,2,2,1],
+                    [1,7,7,7,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,1],
+                    [1,0,0,0,0,0,6,6,0,0,6,6,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,2,2,2,2,2,2,2,2,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+                ],
+                enemies: [
+                    { x: 150, y: 384, type: 'walker', dir: 1, minX: 64, maxX: 250 },
+                    { x: 350, y: 320, type: 'walker', dir: -1, minX: 256, maxX: 450 },
+                    { x: 500, y: 384, type: 'walker', dir: 1, minX: 450, maxX: 576 }
+                ],
+                playerStart: { x: 64, y: 384 }
+            },
+            // Level 5 - Final Challenge
+            {
+                map: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,1],
+                    [1,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,7,7,7,0,0,0,0,0,0,0,0,0,1],
+                    [1,3,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+                    [1,7,7,0,0,0,0,0,0,0,0,0,0,7,7,7,0,0,0,1],
+                    [1,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,3,0,1],
+                    [1,0,0,0,0,7,7,7,0,0,0,0,0,0,0,0,7,7,7,1],
+                    [1,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1],
+                    [1,0,0,0,0,0,0,0,0,7,7,7,0,0,0,0,0,0,0,1],
+                    [1,0,0,6,6,6,0,0,0,0,0,0,0,0,6,6,6,0,0,1],
+                    [1,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,1],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+                    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+                ],
+                enemies: [
+                    { x: 200, y: 352, type: 'walker', dir: 1, minX: 96, maxX: 300 },
+                    { x: 400, y: 352, type: 'walker', dir: -1, minX: 300, maxX: 500 },
+                    { x: 300, y: 256, type: 'walker', dir: 1, minX: 200, maxX: 400 },
+                    { x: 500, y: 192, type: 'walker', dir: -1, minX: 416, maxX: 560 }
+                ],
+                playerStart: { x: 64, y: 384 }
+            }
+        ];
+
+        let currentMap = [];
+        let enemies = [];
+        let collectibles = [];
+        let doorOpen = false;
+
+        // Color Palette - DOS Style
+        const colors = {
+            sky: '#000040',
+            brick: '#8B4513',
+            brickDark: '#654321',
+            ground: '#4a3728',
+            groundDark: '#352518',
+            gem: '#00ffff',
+            gemShine: '#ffffff',
+            trophy: '#ffd700',
+            trophyDark: '#b8860b',
+            door: '#8B0000',
+            doorOpen: '#00ff00',
+            spike: '#c0c0c0',
+            platform: '#666666',
+            platformLight: '#888888',
+            dave: '#ff0000',
+            daveShirt: '#0000ff',
+            daveSkin: '#ffcc99',
+            enemy: '#00ff00',
+            enemyDark: '#008800'
+        };
+
+        // Draw Functions
+        function drawTile(x, y, type) {
+            const px = x * TILE_SIZE;
+            const py = y * TILE_SIZE;
+
+            switch(type) {
+                case 1: // Brick
+                    ctx.fillStyle = colors.brick;
+                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = colors.brickDark;
+                    ctx.fillRect(px, py, TILE_SIZE, 2);
+                    ctx.fillRect(px + TILE_SIZE/2 - 1, py, 2, TILE_SIZE/2);
+                    ctx.fillRect(px, py + TILE_SIZE/2, TILE_SIZE, 2);
+                    ctx.fillRect(px + TILE_SIZE/4, py + TILE_SIZE/2, 2, TILE_SIZE/2);
+                    ctx.fillRect(px + 3*TILE_SIZE/4, py + TILE_SIZE/2, 2, TILE_SIZE/2);
+                    break;
+                    
+                case 2: // Ground
+                    ctx.fillStyle = colors.ground;
+                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = colors.groundDark;
+                    for (let i = 0; i < 4; i++) {
+                        ctx.fillRect(px + i*8 + 2, py + 4, 4, 4);
+                        ctx.fillRect(px + i*8 + 6, py + 20, 4, 4);
+                    }
+                    ctx.fillStyle = '#2a1708';
+                    ctx.fillRect(px, py, TILE_SIZE, 3);
+                    break;
+                    
+                case 6: // Spike
+                    ctx.fillStyle = colors.spike;
+                    ctx.beginPath();
+                    ctx.moveTo(px + TILE_SIZE/2, py + 4);
+                    ctx.lineTo(px + TILE_SIZE - 4, py + TILE_SIZE);
+                    ctx.lineTo(px + 4, py + TILE_SIZE);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = '#888';
+                    ctx.beginPath();
+                    ctx.moveTo(px + TILE_SIZE/2, py + 4);
+                    ctx.lineTo(px + TILE_SIZE/2 + 6, py + TILE_SIZE);
+                    ctx.lineTo(px + TILE_SIZE/2, py + TILE_SIZE);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                    
+                case 7: // Platform
+                    ctx.fillStyle = colors.platform;
+                    ctx.fillRect(px, py, TILE_SIZE, 12);
+                    ctx.fillStyle = colors.platformLight;
+                    ctx.fillRect(px, py, TILE_SIZE, 3);
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(px, py + 9, TILE_SIZE, 3);
+                    break;
+            }
+        }
+
+        function drawCollectibles() {
+            collectibles.forEach(item => {
+                if (item.collected) return;
+                
+                const px = item.x;
+                const py = item.y + Math.sin(Date.now() / 200 + item.x) * 3;
+                
+                if (item.type === 'gem') {
+                    // Diamond shape
+                    ctx.fillStyle = colors.gem;
+                    ctx.beginPath();
+                    ctx.moveTo(px + 12, py);
+                    ctx.lineTo(px + 24, py + 12);
+                    ctx.lineTo(px + 12, py + 24);
+                    ctx.lineTo(px, py + 12);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Shine
+                    ctx.fillStyle = colors.gemShine;
+                    ctx.beginPath();
+                    ctx.moveTo(px + 12, py + 4);
+                    ctx.lineTo(px + 16, py + 12);
+                    ctx.lineTo(px + 12, py + 12);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                } else if (item.type === 'trophy') {
+                    // Trophy cup
+                    ctx.fillStyle = colors.trophy;
+                    ctx.fillRect(px + 4, py + 4, 16, 12);
+                    ctx.fillRect(px + 8, py + 16, 8, 4);
+                    ctx.fillRect(px + 4, py + 20, 16, 4);
+                    
+                    // Handles
+                    ctx.fillRect(px, py + 6, 4, 8);
+                    ctx.fillRect(px + 20, py + 6, 4, 8);
+                    
+                    // Shine
+                    ctx.fillStyle = colors.trophyDark;
+                    ctx.fillRect(px + 6, py + 6, 4, 8);
+                }
+            });
+        }
+
+        function drawDoor() {
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (currentMap[y][x] === 5) {
+                        const px = x * TILE_SIZE;
+                        const py = y * TILE_SIZE;
+                        
+                        ctx.fillStyle = hasTrophy ? colors.doorOpen : colors.door;
+                        ctx.fillRect(px + 4, py, TILE_SIZE - 8, TILE_SIZE);
+                        
+                        // Door frame
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(px, py, 4, TILE_SIZE);
+                        ctx.fillRect(px + TILE_SIZE - 4, py, 4, TILE_SIZE);
+                        ctx.fillRect(px, py, TILE_SIZE, 4);
+                        
+                        // Door handle
+                        ctx.fillStyle = '#ffd700';
+                        ctx.fillRect(px + TILE_SIZE - 12, py + TILE_SIZE/2, 4, 4);
+                        
+                        // Open indicator
+                        if (hasTrophy) {
+                            ctx.fillStyle = '#fff';
+                            ctx.font = '10px "Press Start 2P"';
+                            ctx.fillText('EXIT', px + 2, py - 5);
+                        }
+                    }
+                }
+            }
+        }
+
+        function drawPlayer() {
+            if (player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0) return;
+            
+            const px = player.x;
+            const py = player.y;
+            const dir = player.facing;
+            
+            // Body
+            ctx.fillStyle = colors.daveShirt;
+            ctx.fillRect(px + 6, py + 10, 12, 10);
+            
+            // Head
+            ctx.fillStyle = colors.daveSkin;
+            ctx.fillRect(px + 7, py + 2, 10, 9);
+            
+            // Hair/hat
+            ctx.fillStyle = colors.dave;
+            ctx.fillRect(px + 6, py, 12, 4);
+            ctx.fillRect(px + 4, py + 2, 16, 2);
+            
+            // Eyes
+            ctx.fillStyle = '#000';
+            if (dir > 0) {
+                ctx.fillRect(px + 13, py + 5, 2, 2);
+            } else {
+                ctx.fillRect(px + 9, py + 5, 2, 2);
+            }
+            
+            // Legs
+            ctx.fillStyle = colors.dave;
+            const legOffset = Math.sin(player.frame * 0.5) * 2;
+            if (!player.onGround) {
+                ctx.fillRect(px + 6, py + 20, 5, 8);
+                ctx.fillRect(px + 13, py + 20, 5, 8);
+            } else if (Math.abs(player.vx) > 0.5) {
+                ctx.fillRect(px + 6, py + 20 + legOffset, 5, 8);
+                ctx.fillRect(px + 13, py + 20 - legOffset, 5, 8);
+            } else {
+                ctx.fillRect(px + 7, py + 20, 5, 8);
+                ctx.fillRect(px + 12, py + 20, 5, 8);
+            }
+            
+            // Arms
+            ctx.fillStyle = colors.daveSkin;
+            const armOffset = player.onGround && Math.abs(player.vx) > 0.5 ? Math.sin(player.frame * 0.5) * 3 : 0;
+            ctx.fillRect(px + 2, py + 12 + armOffset, 4, 6);
+            ctx.fillRect(px + 18, py + 12 - armOffset, 4, 6);
+        }
+
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                const px = enemy.x;
+                const py = enemy.y;
+                
+                // Body
+                ctx.fillStyle = colors.enemy;
+                ctx.fillRect(px + 4, py + 8, 16, 14);
+                
+                // Head
+                ctx.fillStyle = colors.enemyDark;
+                ctx.fillRect(px + 6, py, 12, 10);
+                
+                // Eyes
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(px + 8, py + 4, 3, 3);
+                ctx.fillRect(px + 13, py + 4, 3, 3);
+                
+                // Legs
+                const legAnim = Math.sin(Date.now() / 100) * 2;
+                ctx.fillStyle = colors.enemy;
+                ctx.fillRect(px + 6, py + 22 + legAnim, 4, 6);
+                ctx.fillRect(px + 14, py + 22 - legAnim, 4, 6);
+            });
+        }
+
+        // Collision Detection
+        function getTileAt(x, y) {
+            const col = Math.floor(x / TILE_SIZE);
+            const row = Math.floor(y / TILE_SIZE);
+            if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return 1;
+            return currentMap[row][col];
+        }
+
+        function isSolid(tile) {
+            return tile === 1 || tile === 2;
+        }
+
+        function isPlatform(x, y, vy) {
+            const tile = getTileAt(x, y);
+            return tile === 7 && vy >= 0;
+        }
+
+        function checkCollision(x, y, width, height, checkPlatforms = true, vy = 0) {
+            // Check corners and edges
+            const points = [
+                { x: x + 4, y: y + 4 },
+                { x: x + width - 4, y: y + 4 },
+                { x: x + 4, y: y + height },
+                { x: x + width - 4, y: y + height },
+                { x: x + width/2, y: y + height }
+            ];
+            
+            for (let p of points) {
+                if (isSolid(getTileAt(p.x, p.y))) return true;
+            }
+            
+            // Platform check (only for bottom)
+            if (checkPlatforms && vy >= 0) {
+                const bottomY = y + height;
+                const tile1 = getTileAt(x + 4, bottomY);
+                const tile2 = getTileAt(x + width - 4, bottomY);
+                if (tile1 === 7 || tile2 === 7) {
+                    const tileTop = Math.floor(bottomY / TILE_SIZE) * TILE_SIZE;
+                    if (bottomY >= tileTop && bottomY <= tileTop + 8) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        function checkSpikes(x, y, width, height) {
+            const points = [
+                { x: x + 6, y: y + height - 4 },
+                { x: x + width - 6, y: y + height - 4 },
+                { x: x + width/2, y: y + height - 4 }
+            ];
+            
+            for (let p of points) {
+                if (getTileAt(p.x, p.y) === 6) return true;
+            }
+            return false;
+        }
+
+        // Game Logic
+        function loadLevel(levelIndex) {
+            currentLevel = levelIndex;
+            const level = levels[levelIndex];
+            
+            // Deep copy map
+            currentMap = level.map.map(row => [...row]);
+            
+            // Setup collectibles
+            collectibles = [];
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (currentMap[y][x] === 3) {
+                        collectibles.push({
+                            x: x * TILE_SIZE + 4,
+                            y: y * TILE_SIZE + 4,
+                            type: 'gem',
+                            collected: false
+                        });
+                        currentMap[y][x] = 0;
+                    } else if (currentMap[y][x] === 4) {
+                        collectibles.push({
+                            x: x * TILE_SIZE + 4,
+                            y: y * TILE_SIZE + 4,
+                            type: 'trophy',
+                            collected: false
+                        });
+                        currentMap[y][x] = 0;
+                    }
+                }
+            }
+            
+            // Setup enemies
+            enemies = level.enemies.map(e => ({
+                ...e,
+                startX: e.x,
+                y: e.y - 28
+            }));
+            
+            // Reset player
+            player.x = level.playerStart.x;
+            player.y = level.playerStart.y - player.height;
+            player.vx = 0;
+            player.vy = 0;
+            player.onGround = false;
+            player.invincible = 0;
+            
+            hasTrophy = false;
+            doorOpen = false;
+            
+            updateHUD();
+        }
+
+        function updatePlayer() {
+            // Input handling
+            player.vx = 0;
+            if (keys.left) {
+                player.vx = -MOVE_SPEED;
+                player.facing = -1;
+            }
+            if (keys.right) {
+                player.vx = MOVE_SPEED;
+                player.facing = 1;
+            }
+            
+            // Jumping
+            if ((keys.jump || keys.up) && player.onGround) {
+                player.vy = JUMP_FORCE;
+                player.onGround = false;
+                playSound('jump');
+            }
+            
+            // Apply gravity
+            player.vy += GRAVITY;
+            if (player.vy > 12) player.vy = 12;
+            
+            // Horizontal movement
+            let newX = player.x + player.vx;
+            if (!checkCollision(newX, player.y, player.width, player.height, false)) {
+                player.x = newX;
+            }
+            
+            // Vertical movement
+            let newY = player.y + player.vy;
+            player.onGround = false;
+            
+            if (player.vy > 0) {
+                // Falling
+                if (checkCollision(player.x, newY, player.width, player.height, true, player.vy)) {
+                    // Find ground level
+                    while (!checkCollision(player.x, player.y + 1, player.width, player.height, true, player.vy)) {
+                        player.y += 1;
+                    }
+                    player.vy = 0;
+                    player.onGround = true;
+                } else {
+                    player.y = newY;
+                }
+            } else {
+                // Rising
+                if (checkCollision(player.x, newY, player.width, player.height, false)) {
+                    player.vy = 0;
+                } else {
+                    player.y = newY;
+                }
+            }
+            
+            // Animation
+            if (Math.abs(player.vx) > 0.5) {
+                player.frameTimer++;
+                if (player.frameTimer > 5) {
+                    player.frame++;
+                    player.frameTimer = 0;
+                }
+            }
+            
+            // Boundaries
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
+            
+            // Invincibility countdown
+            if (player.invincible > 0) player.invincible--;
+            
+            // Check spikes
+            if (player.invincible === 0 && checkSpikes(player.x, player.y, player.width, player.height)) {
+                hurtPlayer();
+            }
+            
+            // Check collectibles
+            collectibles.forEach(item => {
+                if (item.collected) return;
+                
+                const px = player.x + player.width / 2;
+                const py = player.y + player.height / 2;
+                const ix = item.x + 12;
+                const iy = item.y + 12;
+                
+                const dist = Math.sqrt((px - ix) ** 2 + (py - iy) ** 2);
+                if (dist < 20) {
+                    item.collected = true;
+                    if (item.type === 'gem') {
+                        score += 100;
+                        playSound('collect');
+                    } else if (item.type === 'trophy') {
+                        hasTrophy = true;
+                        score += 500;
+                        playSound('trophy');
+                    }
+                    updateHUD();
+                }
+            });
+            
+            // Check door
+            if (hasTrophy) {
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (currentMap[y][x] === 5) {
+                            const doorX = x * TILE_SIZE;
+                            const doorY = y * TILE_SIZE;
+                            
+                            if (player.x + player.width > doorX && player.x < doorX + TILE_SIZE &&
+                                player.y + player.height > doorY && player.y < doorY + TILE_SIZE) {
+                                levelComplete();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Check fall death
+            if (player.y > canvas.height) {
+                hurtPlayer();
+            }
+        }
+
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                // Move enemy
+                enemy.x += enemy.dir * 1.5;
+                
+                // Reverse at bounds
+                if (enemy.x <= enemy.minX || enemy.x >= enemy.maxX) {
+                    enemy.dir *= -1;
+                }
+                
+                // Check collision with player
+                if (player.invincible === 0) {
+                    const px = player.x + player.width / 2;
+                    const py = player.y + player.height / 2;
+                    const ex = enemy.x + 12;
+                    const ey = enemy.y + 14;
+                    
+                    const dist = Math.sqrt((px - ex) ** 2 + (py - ey) ** 2);
+                    if (dist < 24) {
+                        hurtPlayer();
+                    }
+                }
+            });
+        }
+
+        function hurtPlayer() {
+            lives--;
+            playSound('hurt');
+            
+            if (lives <= 0) {
+                gameState = 'gameOver';
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('gameOverScreen').classList.remove('hidden');
+                document.getElementById('hud').classList.add('hidden');
+            } else {
+                // Respawn
+                const level = levels[currentLevel];
+                player.x = level.playerStart.x;
+                player.y = level.playerStart.y - player.height;
+                player.vx = 0;
+                player.vy = 0;
+                player.invincible = 120;
+                updateHUD();
+            }
+        }
+
+        function levelComplete() {
+            gameState = 'levelComplete';
+            levelCompleteTimer = 180;
+            playSound('levelComplete');
+            score += 1000;
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('scoreDisplay').textContent = score;
+            document.getElementById('levelDisplay').textContent = currentLevel + 1;
+            document.getElementById('livesDisplay').textContent = '❤'.repeat(lives);
+            document.getElementById('trophyDisplay').textContent = hasTrophy ? '✓' : '✗';
+            document.getElementById('trophyDisplay').style.color = hasTrophy ? '#0f0' : '#f00';
+        }
+
+        // Main Game Loop
+        function update() {
+            if (gameState === 'playing') {
+                updatePlayer();
+                updateEnemies();
+            } else if (gameState === 'levelComplete') {
+                levelCompleteTimer--;
+                if (levelCompleteTimer <= 0) {
+                    if (currentLevel < levels.length - 1) {
+                        loadLevel(currentLevel + 1);
+                        gameState = 'playing';
+                    } else {
+                        // Game won!
+                        gameState = 'win';
+                        document.getElementById('winScore').textContent = score;
+                        document.getElementById('winScreen').classList.remove('hidden');
+                        document.getElementById('hud').classList.add('hidden');
+                    }
+                }
+            }
+        }
+
+        function render() {
+            // Clear canvas
+            ctx.fillStyle = colors.sky;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background stars
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 50; i++) {
+                const x = (i * 137) % canvas.width;
+                const y = (i * 89) % (canvas.height - 100);
+                ctx.fillRect(x, y, 2, 2);
+            }
+            
+            // Draw tiles
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    const tile = currentMap[y][x];
+                    if (tile !== 0 && tile !== 5) {
+                        drawTile(x, y, tile);
+                    }
+                }
+            }
+            
+            // Draw door
+            drawDoor();
+            
+            // Draw collectibles
+            drawCollectibles();
+            
+            // Draw enemies
+            drawEnemies();
+            
+            // Draw player
+            drawPlayer();
+            
+            // Level complete overlay
+            if (gameState === 'levelComplete') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#0f0';
+                ctx.font = '24px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('LEVEL COMPLETE!', canvas.width/2, canvas.height/2 - 20);
+                
+                ctx.fillStyle = '#ff0';
+                ctx.font = '14px "Press Start 2P"';
+                ctx.fillText('+1000 BONUS', canvas.width/2, canvas.height/2 + 20);
+                
+                ctx.textAlign = 'left';
+            }
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Input Events
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = true;
+            if (e.code === 'Space') {
+                keys.jump = true;
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = false;
+            if (e.code === 'Space') keys.jump = false;
+        });
+
+        // Mobile Controls
+        function setupMobileControls() {
+            const btnLeft = document.getElementById('btnLeft');
+            const btnRight = document.getElementById('btnRight');
+            const btnUp = document.getElementById('btnUp');
+            const btnJump = document.getElementById('btnJump');
+            
+            const handleTouch = (btn, key, isStart) => {
+                btn.addEventListener(isStart ? 'touchstart' : 'touchend', (e) => {
+                    e.preventDefault();
+                    keys[key] = isStart;
+                });
+            };
+            
+            handleTouch(btnLeft, 'left', true);
+            handleTouch(btnLeft, 'left', false);
+            handleTouch(btnRight, 'right', true);
+            handleTouch(btnRight, 'right', false);
+            handleTouch(btnUp, 'up', true);
+            handleTouch(btnUp, 'up', false);
+            handleTouch(btnJump, 'jump', true);
+            handleTouch(btnJump, 'jump', false);
+        }
+
+        // Game Start
+        function startGame() {
+            initAudio();
+            gameState = 'playing';
+            score = 0;
+            lives = 3;
+            loadLevel(0);
+            
+            document.getElementById('titleScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('winScreen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+        }
+
+        // Event Listeners
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        document.getElementById('playAgainBtn').addEventListener('click', startGame);
+
+        // Keyboard start
+        document.addEventListener('keydown', (e) => {
+            if ((e.code === 'Enter' || e.code === 'Space') && gameState === 'title') {
+                startGame();
+            }
+        });
+
+        // Initialize
+        setupMobileControls();
+        gameLoop();
+
+        // Responsive canvas
+        function resizeCanvas() {
+            const container = document.querySelector('.game-container');
+            const maxWidth = Math.min(window.innerWidth - 32, 640);
+            const maxHeight = Math.min(window.innerHeight - 150, 480);
+            const scale = Math.min(maxWidth / 640, maxHeight / 480);
+            
+            container.style.width = `${640 * scale}px`;
+            container.style.height = `${480 * scale}px`;
+            canvas.style.width = `${640 * scale}px`;
+            canvas.style.height = `${480 * scale}px`;
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+    </script>
+</body>
+</html>
